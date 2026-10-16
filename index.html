@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP ROI Calculator</title>
+<meta name="description" content="Estimate annual savings, payback period and 3-year ROI of an Odoo / ERP implementation.">
+<style>
+  :root {
+    --bg: #f7f7f9; --card: #ffffff; --text: #1b1b22; --muted: #5d5d6b;
+    --line: #e3e3ea; --accent: #714b67; --good: #1f7a4d; --bad: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121216; --card: #1c1c22; --text: #ececf1; --muted: #a2a2b0;
+            --line: #2e2e38; --accent: #c49ab8; --good: #5cc98f; --bad: #f2867d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  .sub { color: var(--muted); margin: 4px 0 24px; }
+  button.lang { border: 1px solid var(--line); background: var(--card); color: var(--text);
+                border-radius: 8px; padding: 6px 14px; cursor: pointer; font: inherit; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .card h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  label { display: block; font-size: .9rem; color: var(--muted); margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+                  background: var(--bg); color: var(--text); font: inherit; }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .kpi .v { font-size: 1.35rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .kpi .k { font-size: .82rem; color: var(--muted); }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  .note { font-size: .82rem; color: var(--muted); margin-top: 16px; }
+  footer { margin-top: 28px; font-size: .85rem; color: var(--muted); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 data-t="title"></h1>
+    <button class="lang" id="lang" type="button">العربية</button>
+  </header>
+  <p class="sub" data-t="subtitle"></p>
+
+  <div class="grid">
+    <section class="card">
+      <h2 data-t="inputs"></h2>
+      <label for="currency" data-t="currency"></label>
+      <select id="currency"><option>EGP</option><option>SAR</option><option>AED</option><option>USD</option></select>
+      <label for="staff" data-t="staff"></label>
+      <input id="staff" type="number" min="0" value="10">
+      <label for="hours" data-t="hours"></label>
+      <input id="hours" type="number" min="0" max="60" value="8">
+      <label for="rate" data-t="rate"></label>
+      <input id="rate" type="number" min="0" value="150">
+      <label for="cut" data-t="cut"></label>
+      <input id="cut" type="number" min="0" max="100" value="40">
+      <label for="other" data-t="other"></label>
+      <input id="other" type="number" min="0" value="100000">
+      <label for="impl" data-t="impl"></label>
+      <input id="impl" type="number" min="0" value="250000">
+      <label for="run" data-t="run"></label>
+      <input id="run" type="number" min="0" value="60000">
+    </section>
+
+    <section class="card">
+      <h2 data-t="results"></h2>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="hoursSaved"></div><div class="k" data-t="hoursSaved"></div></div>
+        <div class="kpi"><div class="v" id="savings"></div><div class="k" data-t="savings"></div></div>
+        <div class="kpi"><div class="v" id="net"></div><div class="k" data-t="net"></div></div>
+        <div class="kpi"><div class="v" id="payback"></div><div class="k" data-t="payback"></div></div>
+        <div class="kpi"><div class="v" id="roi"></div><div class="k" data-t="roi"></div></div>
+        <div class="kpi"><div class="v" id="value3"></div><div class="k" data-t="value3"></div></div>
+      </div>
+      <p class="note" data-t="method"></p>
+    </section>
+  </div>
+
+  <footer><span data-t="by"></span> <a href="https://github.com/jamalswilam">Jamal Swilam</a> ·
+    <a href="https://www.isolutions-technology.com">I Solutions Technology</a></footer>
+</main>
+<script>
+const WORK_WEEKS = 48;
+const T = {
+  en: {
+    title: "ERP ROI Calculator", subtitle: "Estimate what an Odoo / ERP implementation returns before you sign.",
+    inputs: "Your numbers", results: "Results", currency: "Currency",
+    staff: "Staff doing manual / repetitive work", hours: "Hours per person per week on that work",
+    rate: "Fully loaded cost per hour", cut: "Expected reduction of that work (%)",
+    other: "Other yearly gains (fewer errors, stock, faster collections)",
+    impl: "One-time implementation cost", run: "Yearly running cost (licenses, hosting, support)",
+    hoursSaved: "Hours saved per year", savings: "Labour savings per year", net: "Net benefit per year",
+    payback: "Payback period", roi: "3-year ROI", value3: "3-year net value",
+    months: "months", never: "Never",
+    method: "Method: hours saved = staff × hours/week × reduction × 48 weeks. Net = labour savings + other gains − running cost. ROI = (3 × net − implementation) ÷ implementation. Estimates only; use your own measured numbers.",
+    by: "Built by", toggle: "العربية"
+  },
+  ar: {
+    title: "حاسبة العائد على الاستثمار لأنظمة ERP", subtitle: "قدّر العائد من تطبيق أودو أو أي نظام ERP قبل التوقيع.",
+    inputs: "أرقامك", results: "النتائج", currency: "العملة",
+    staff: "عدد الموظفين في أعمال يدوية أو متكررة", hours: "ساعات أسبوعية لكل موظف في هذه الأعمال",
+    rate: "التكلفة الكاملة للساعة", cut: "نسبة الخفض المتوقعة لهذه الأعمال (%)",
+    other: "مكاسب سنوية أخرى (أخطاء أقل، مخزون، تحصيل أسرع)",
+    impl: "تكلفة التطبيق لمرة واحدة", run: "التكلفة السنوية للتشغيل (تراخيص، استضافة، دعم)",
+    hoursSaved: "الساعات الموفرة سنويًا", savings: "وفر تكلفة العمالة سنويًا", net: "صافي العائد السنوي",
+    payback: "فترة استرداد التكلفة", roi: "العائد على الاستثمار خلال 3 سنوات", value3: "صافي القيمة خلال 3 سنوات",
+    months: "شهر", never: "لا يُسترد",
+    method: "طريقة الحساب: الساعات الموفرة = الموظفون × الساعات الأسبوعية × نسبة الخفض × 48 أسبوعًا. الصافي = وفر العمالة + المكاسب الأخرى − تكلفة التشغيل. العائد = (3 × الصافي − تكلفة التطبيق) ÷ تكلفة التطبيق. أرقام تقديرية؛ استخدم أرقامك الفعلية.",
+    by: "من إعداد", toggle: "English"
+  }
+};
+let lang = "en";
+try { lang = localStorage.getItem("roi-lang") || "en"; } catch (e) {}
+
+const $ = id => document.getElementById(id);
+const num = id => Math.max(0, parseFloat($(id).value) || 0);
+
+function money(v) {
+  return new Intl.NumberFormat(lang === "ar" ? "ar-EG" : "en-US",
+    { style: "currency", currency: $("currency").value, maximumFractionDigits: 0 }).format(v);
+}
+function int(v) { return new Intl.NumberFormat(lang === "ar" ? "ar-EG" : "en-US", { maximumFractionDigits: 0 }).format(v); }
+
+function calc() {
+  const t = T[lang];
+  const hoursSaved = num("staff") * num("hours") * Math.min(num("cut"), 100) / 100 * WORK_WEEKS;
+  const savings = hoursSaved * num("rate");
+  const net = savings + num("other") - num("run");
+  const impl = num("impl");
+  $("hoursSaved").textContent = int(hoursSaved);
+  $("savings").textContent = money(savings);
+  $("net").textContent = money(net);
+  $("net").className = "v " + (net > 0 ? "good" : "bad");
+  $("payback").textContent = net > 0 ? `${int(Math.ceil(impl / (net / 12)))} ${t.months}` : t.never;
+  const value3 = 3 * net - impl;
+  $("value3").textContent = money(value3);
+  $("value3").className = "v " + (value3 >= 0 ? "good" : "bad");
+  $("roi").textContent = impl > 0 ? `${int(value3 / impl * 100)}%` : "—";
+  $("roi").className = "v " + (value3 >= 0 ? "good" : "bad");
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  document.querySelectorAll("[data-t]").forEach(el => { el.textContent = T[lang][el.dataset.t]; });
+  document.title = T[lang].title;
+  $("lang").textContent = T[lang].toggle;
+  calc();
+}
+
+$("lang").addEventListener("click", () => {
+  lang = lang === "en" ? "ar" : "en";
+  try { localStorage.setItem("roi-lang", lang); } catch (e) {}
+  applyLang();
+});
+document.querySelectorAll("input, select").forEach(el => el.addEventListener("input", calc));
+applyLang();
+</script>
+</body>
+</html>
